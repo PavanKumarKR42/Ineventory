@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -52,5 +53,11 @@ public class AccountServiceImpl implements AccountService {
         activityLogRepository.save(log);
 
         return savedEmployee;
+    }
+
+    // 👥 NEW METHOD (for admin endpoint)
+    @Override
+    public List<Account> getAllEmployees() {
+        return accountRepository.findAllEmployees();
     }
 }

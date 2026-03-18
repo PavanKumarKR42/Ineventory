@@ -1,5 +1,6 @@
 package com.example.Inventory.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -14,15 +15,18 @@ import java.math.BigDecimal;
 public class OrderItem {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue
     private Long id;
 
     private int quantity;
 
     private BigDecimal unitPrice;
 
+    private String status; // ORDERED / RETURNED
+
     @ManyToOne
     @JoinColumn(name = "order_id")
+    @JsonIgnore // ✅ prevents infinite loop
     private Order order;
 
     @ManyToOne

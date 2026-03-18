@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +21,7 @@ public class OrderServiceImpl implements OrderService {
     private final AccountRepository accountRepository;
     private final ActivityLogRepository activityLogRepository;
 
+    // ✅ CREATE ORDER
     @Override
     public Order createOrder(CreateOrderRequest request, String customerEmail) {
 
@@ -47,22 +49,25 @@ public class OrderServiceImpl implements OrderService {
                 throw new RuntimeException("Not enough stock");
             }
 
+            // 🔻 reduce stock
             product.setQuantity(product.getQuantity() - itemRequest.getQuantity());
             productRepository.save(product);
 
             BigDecimal price = BigDecimal.valueOf(product.getPrice());
+
             OrderItem item = OrderItem.builder()
                     .order(order)
                     .product(product)
                     .quantity(itemRequest.getQuantity())
                     .unitPrice(price)
+                    .status("ORDERED") // ✅ IMPORTANT
                     .build();
 
             orderItemRepository.save(item);
 
-            total = total.add(price.multiply(
-                    BigDecimal.valueOf(itemRequest.getQuantity())
-            ));
+            total = total.add(
+                    price.multiply(BigDecimal.valueOf(itemRequest.getQuantity()))
+            );
         }
 
         order.setTotalAmount(total);
@@ -77,5 +82,43 @@ public class OrderServiceImpl implements OrderService {
         activityLogRepository.save(log);
 
         return order;
+    }
+
+    // ✅ GET USER ORDERS
+    @Override
+    public List<Order> getOrdersByCustomer(String email) {
+        return orderRepository.findByCustomerEmail(email);
+    }
+
+    // ✅ RETURN ITEM (PRODUCTION READY)
+    @Override
+    public void returnItem(Long orderItemId, String userEmail) {
+
+        OrderItem item = orderItemRepository.findById(orderItemId)
+                .orElseThrow(() -> new RuntimeException("Order item not found"));
+
+        // ❌ prevent double return
+        if ("RETURNED".equals(item.getStatus())) {
+            throw new RuntimeException("Item already returned");
+        }
+
+        Product product = item.getProduct();
+
+        // 🔄 increase stock
+        product.setQuantity(product.getQuantity() + item.getQuantity());
+        productRepository.save(product);
+
+        // 🔁 mark as returned (NO DELETE)
+        item.setStatus("RETURNED");
+        orderItemRepository.save(item);
+
+        // 📝 log activity
+        ActivityLog log = ActivityLog.builder()
+                .action("RETURNED product: " + product.getName())
+                .performedBy(userEmail)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        activityLogRepository.save(log);
     }
 }

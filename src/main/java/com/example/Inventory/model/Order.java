@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -23,8 +24,12 @@ public class Order {
 
     private LocalDateTime createdAt;
 
+    // 👤 Customer
     @ManyToOne
     @JoinColumn(name = "customer_id")
     private Account customer;
 
+    // 📦 Order Items (VERY IMPORTANT)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    private List<OrderItem> items;
 }
