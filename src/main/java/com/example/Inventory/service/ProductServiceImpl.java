@@ -10,6 +10,7 @@ import com.example.Inventory.repository.ActivityLogRepository;
 import com.example.Inventory.repository.CategoryRepository;
 import com.example.Inventory.repository.ProductRepository;
 import com.example.Inventory.repository.AccountRepository;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -24,8 +25,8 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final ActivityLogRepository activityLogRepository;
     private final CategoryRepository categoryRepository;
-    private final AccountRepository accountRepository; // ✅ NEW
-    private final EmailService emailService; // ✅ NEW
+    private final AccountRepository accountRepository;
+    private final EmailService emailService;
 
     // ✅ GET ALL PRODUCTS
     @Override
@@ -68,8 +69,8 @@ public class ProductServiceImpl implements ProductService {
                 .createdAt(LocalDateTime.now())
                 .build());
 
-        // ⚠️ LOW STOCK ALERT
-        checkAndSendLowStockAlert(saved);
+        // 🚨 LOW STOCK CHECK
+        checkAndSendLowStockAlert(null, saved, employeeEmail);
 
         return saved;
     }
@@ -82,6 +83,8 @@ public class ProductServiceImpl implements ProductService {
                 .findByName(request.getProductName())
                 .orElseThrow(() -> new RuntimeException("Invalid product"));
 
+        int oldQuantity = product.getQuantity();
+
         product.setQuantity(product.getQuantity() + request.getQuantity());
 
         Product saved = productRepository.save(product);
@@ -92,8 +95,8 @@ public class ProductServiceImpl implements ProductService {
                 .createdAt(LocalDateTime.now())
                 .build());
 
-        // ⚠️ LOW STOCK ALERT
-        checkAndSendLowStockAlert(saved);
+        // 🚨 LOW STOCK CHECK
+        checkAndSendLowStockAlert(oldQuantity, saved, employeeEmail);
 
         return saved;
     }
@@ -110,6 +113,8 @@ public class ProductServiceImpl implements ProductService {
             throw new RuntimeException("Not enough stock");
         }
 
+        int oldQuantity = product.getQuantity();
+
         product.setQuantity(product.getQuantity() - request.getQuantity());
 
         Product saved = productRepository.save(product);
@@ -120,25 +125,31 @@ public class ProductServiceImpl implements ProductService {
                 .createdAt(LocalDateTime.now())
                 .build());
 
-        // ⚠️ LOW STOCK ALERT
-        checkAndSendLowStockAlert(saved);
+        // 🚨 LOW STOCK CHECK
+        checkAndSendLowStockAlert(oldQuantity, saved, employeeEmail);
 
         return saved;
     }
 
-    // 🚨 LOW STOCK ALERT LOGIC (COMMON METHOD)
-    private void checkAndSendLowStockAlert(Product product) {
+    // 🚨 LOW STOCK ALERT (SMART VERSION)
+    private void checkAndSendLowStockAlert(Integer oldQty, Product product, String employeeEmail) {
 
-        if (product.getQuantity() < 4) {
+        int newQty = product.getQuantity();
+
+        // ✅ Trigger ONLY when crossing threshold (>=4 → <4)
+        if ((oldQty == null || oldQty >= 4) && newQty < 4) {
 
             List<String> emails = accountRepository.findAllEmployeeAndAdminEmails();
 
             for (String email : emails) {
+
                 emailService.sendMail(
                         email,
-                        "Low Stock Alert 🚨",
+                        "⚠ Low Stock Alert",
                         "Product: " + product.getName() +
-                                "\nRemaining Quantity: " + product.getQuantity()
+                                "\nRemaining Quantity: " + newQty +
+                                "\nUpdated By: " + employeeEmail +
+                                "\nTime: " + LocalDateTime.now()
                 );
             }
         }
