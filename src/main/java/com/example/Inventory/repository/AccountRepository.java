@@ -20,4 +20,7 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     // 👥 Count employees (used in analytics)
     @Query("SELECT COUNT(a) FROM Account a WHERE a.role = 'EMPLOYEE'")
     long countEmployees();
+
+    @Query("SELECT a.email FROM Account a WHERE a.role IN ('EMPLOYEE','ADMIN')")
+    List<String> findAllEmployeeAndAdminEmails();
 }

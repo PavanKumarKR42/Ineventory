@@ -20,6 +20,7 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final AccountRepository accountRepository;
     private final ActivityLogRepository activityLogRepository;
+    private final EmailService emailService; // ✅ NEW
 
     // ✅ CREATE ORDER
     @Override
@@ -38,6 +39,9 @@ public class OrderServiceImpl implements OrderService {
         order = orderRepository.save(order);
 
         BigDecimal total = BigDecimal.ZERO;
+
+        StringBuilder mailBody = new StringBuilder();
+        mailBody.append("Order Details:\n\n");
 
         for (OrderItemRequest itemRequest : request.getItems()) {
 
@@ -60,10 +64,15 @@ public class OrderServiceImpl implements OrderService {
                     .product(product)
                     .quantity(itemRequest.getQuantity())
                     .unitPrice(price)
-                    .status("ORDERED") // ✅ IMPORTANT
+                    .status("ORDERED")
                     .build();
 
             orderItemRepository.save(item);
+
+            // 📩 Build email content
+            mailBody.append("Product: ").append(product.getName())
+                    .append("\nQuantity: ").append(itemRequest.getQuantity())
+                    .append("\n\n");
 
             total = total.add(
                     price.multiply(BigDecimal.valueOf(itemRequest.getQuantity()))
@@ -73,6 +82,17 @@ public class OrderServiceImpl implements OrderService {
         order.setTotalAmount(total);
         orderRepository.save(order);
 
+        // 📩 Add total to mail
+        mailBody.append("Total Amount: ").append(total);
+
+        // 📧 SEND EMAIL
+        emailService.sendMail(
+                customerEmail,
+                "Order Confirmation",
+                mailBody.toString()
+        );
+
+        // 📝 Activity log
         ActivityLog log = ActivityLog.builder()
                 .action("CUSTOMER_PURCHASE")
                 .performedBy(customerEmail)
@@ -90,7 +110,7 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.findByCustomerEmail(email);
     }
 
-    // ✅ RETURN ITEM (PRODUCTION READY)
+    // ✅ RETURN ITEM
     @Override
     public void returnItem(Long orderItemId, String userEmail) {
 
@@ -108,9 +128,17 @@ public class OrderServiceImpl implements OrderService {
         product.setQuantity(product.getQuantity() + item.getQuantity());
         productRepository.save(product);
 
-        // 🔁 mark as returned (NO DELETE)
+        // 🔁 mark as returned
         item.setStatus("RETURNED");
         orderItemRepository.save(item);
+
+        // 📧 SEND RETURN EMAIL
+        emailService.sendMail(
+                userEmail,
+                "Return Successful",
+                "Returned Product: " + product.getName() +
+                        "\nQuantity: " + item.getQuantity()
+        );
 
         // 📝 log activity
         ActivityLog log = ActivityLog.builder()
